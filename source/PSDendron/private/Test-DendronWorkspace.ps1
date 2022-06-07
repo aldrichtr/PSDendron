@@ -14,21 +14,23 @@ Function Test-DendronWorkspace {
     [CmdletBinding()]
     param(    # Optionally give another directory to start in
         [Parameter(
-            ValueFromPipeline = $true
+            ValueFromPipeline,
+            ValueFromPipelineByPropertyName
         )]
         [Alias('PSPath')]
-        [string]$Path = (Get-Location).ToString()
+        [string]$Path
     )
     begin {
-        Write-Debug "Begin $($MyInvocation.MyCommand.Name)"
+        Write-Debug "-- begin $($MyInvocation.MyCommand.Name)"
         $codespace_file = 'dendron.code-workspace'
-        $config_file = 'dendron.yml'
-        $isDendron = $false
-        $hasCodespace = $false
-        $hasConfig = $false
+        $config_file    = 'dendron.yml'
+        $isDendron      = $false
+        $hasCodespace   = $false
+        $hasConfig      = $false
     }
     process {
         #region Path
+        Write-Debug "  Path $Path is $($Path.GetType())"
         if ($Path -is [string]) {
             $location = Get-Item $Path
             if ($location -is [System.IO.FileInfo]) {
@@ -39,7 +41,6 @@ Function Test-DendronWorkspace {
         } elseif ($Path -is [System.IO.FileInfo]) {
             $location = $Path.Directory
         }
-        Write-Debug "  Path $Path is $($Path.GetType())"
         Write-Debug "  Looking in $($location.GetType()) $($location.FullName) for Dendron workspace information"
 
         #endregion Path
@@ -62,7 +63,7 @@ Function Test-DendronWorkspace {
         #endregion Config files
     }
     end {
-        Write-Debug "End $($MyInvocation.MyCommand.Name)"
+        Write-Debug "-- end $($MyInvocation.MyCommand.Name)"
         return $isDendron
     }
 }

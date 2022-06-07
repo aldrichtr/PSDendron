@@ -1,0 +1,32 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build the module",
+            "type": "shell",
+            "command": "Invoke-Build Build"
+        },
+        {
+            "label": "Run tests",
+            "type":"shell",
+            "command": "Invoke-Build Test -TestTag ${input:TestTag}",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Clean generated files",
+            "type": "shell",
+            "command":"Invoke-Build Clean"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "TestTag",
+            "description": "Pester test tags to include",
+            "type": "promptString",
+            "default": "unit"
+        }
+    ]
+}

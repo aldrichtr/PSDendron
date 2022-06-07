@@ -1,17 +1,20 @@
-        param (
-            # BuildRoot is automatically set by Invoke-Build, but it could
-            # be modified here so that hierarchical builds can be done
-            [Parameter()]
-            [string]$BuildRoot = $BuildRoot,
+param (
+    # BuildRoot is automatically set by Invoke-Build, but it could
+    # be modified here so that hierarchical builds can be done
+    [Parameter()]
+    [string]$BuildRoot = $BuildRoot,
 
-            [Parameter()]
-            [string]$BuildTools = "$BuildRoot\build",
+    [Parameter()]
+    [string]$BuildTools = "$BuildRoot\build",
 
-            # This is the module name used in many directory, file and script
-            # functions
-            [Parameter()]
-            [string]$ModuleName = """"
-        )
+    # This is the module name used in many directory, file and script
+    # functions
+    [Parameter()]
+    [string]$ModuleName = '"',
+
+    [Parameter()]
+    [string]$TestTag
+)
 
 
 #region BuildTool Setup
@@ -40,48 +43,67 @@ Enter-Build {
     Write-Build Gray "# `u{E7A2} PowerShell BuildTools "
     Write-Build Gray "# BuildTools project running in '$BuildRoot'"
     if ($config.Build.Header -notlike 'minimal') {
-        Write-Build Gray "Project directories:"
-        ("Source", "Tests", "Docs", "Staging", "Artifact") | ForEach-Object {
+        Write-Build Gray 'Project directories:'
+        ('Source', 'Tests', 'Docs', 'Staging', 'Artifact') | ForEach-Object {
             $projPath = $config.$_.Path
             if (Test-Path $projPath) {
-                Write-Build Gray (" - {0,-16} {1}" -f $_, ((Get-Item $projPath) |
-                        Resolve-Path -Relative -ErrorAction SilentlyContinue))
-            } else {
-                Write-Build DarkGray (" - {0,-16} {1}" -f $_, "(missing) $projPath" )
+                Write-Build Gray (' - {0,-16} {1}' -f $_, ((Get-Item $projPath) |
+                            Resolve-Path -Relative -ErrorAction SilentlyContinue))
+                } else {
+                    Write-Build DarkGray (' - {0,-16} {1}' -f $_, "(missing) $projPath" )
+                }
+            }
+        }
+        Write-Build Gray ('=' * 80)
+    }
+
+    # Exit-Build { Write-Build DarkBlue "Exit-Build after the last task`n$('.' * 78) $Result`n$('.' * 78)" }
+    # Enter-BuildTask { Write-Build DarkBlue "Enter-BuildTask - before each task"}
+    # Exit-BuildTask { Write-Build DarkBlue "Exit-BuildTask - after each task" }
+    # Enter-BuildJob { Write-Build DarkBlue "Enter-BuildJob - before each task action"}
+    # Exit-BuildJob { Write-Build DarkBlue "Exit-BuildJob - after each task action"}
+    # Set-BuildHeader { param($Path) Write-Build DarkBlue "[X] Task $Path --- $(Get-BuildSynopsis $Task)" }
+    # Set-BuildFooter {param($Path)}
+    #endregion
+
+
+    #synopsis: write helpful output
+    task Help {
+        Write-Build Red "The build type: $Type"
+        Write-Build DarkBlue "A total of $(${*}.All.Count) tasks"
+        foreach ( $t in ${*}.All.Keys) {
+            $hasSubTasks = $false
+            $sub = @()
+            $currentTask = ${*}.All[$t]
+            $syn = Get-BuildSynopsis $currentTask
+            foreach ($j in $currentTask.Jobs) {
+                if ($j -is [string] ) {
+                    $hasSubTasks = $true
+                    $sub += ('  {0}: {1}' -f $j, (Get-BuildSynopsis ${*}.All[$j]))
+                }
+            }
+            if ($hasSubTasks) {
+                '{0}: {1}' -f $t, $syn
+                $sub
             }
         }
     }
-    Write-Build Gray ('=' * 80)
-}
 
-# Exit-Build { Write-Build DarkBlue "Exit-Build after the last task`n$('.' * 78) $Result`n$('.' * 78)" }
-# Enter-BuildTask { Write-Build DarkBlue "Enter-BuildTask - before each task"}
-# Exit-BuildTask { Write-Build DarkBlue "Exit-BuildTask - after each task" }
-# Enter-BuildJob { Write-Build DarkBlue "Enter-BuildJob - before each task action"}
-# Exit-BuildJob { Write-Build DarkBlue "Exit-BuildJob - after each task action"}
-# Set-BuildHeader { param($Path) Write-Build DarkBlue "[X] Task $Path --- $(Get-BuildSynopsis $Task)" }
-# Set-BuildFooter {param($Path)}
-#endregion
+    task Test {
+        $config = Get-BuildConfiguration
+        $mod = Join-Path -Path $config.Project.Path -ChildPath $config.Project.Modules.Root.Module
+        Import-Module $mod -Force
 
-
-#synopsis: write helpful output
-task Help {
-    Write-Build Red "The build type: $Type"
-    Write-Build DarkBlue "A total of $(${*}.All.Count) tasks"
-    foreach ( $t in ${*}.All.Keys) {
-        $hasSubTasks = $false
-        $sub = @()
-        $currentTask = ${*}.All[$t]
-        $syn = Get-BuildSynopsis $currentTask
-        foreach ($j in $currentTask.Jobs) {
-            if ($j -is [string] ) {
-                $hasSubTasks = $true
-                $sub += ("  {0}: {1}" -f $j, (Get-BuildSynopsis ${*}.All[$j]))
-            }
+        $pConfig = New-PesterConfiguration
+        $pConfig.Run.Path = "$BuildRoot\tests"
+        $pConfig.Run.Exit = $true
+        $pConfig.Run.SkipRemainingOnFailure = 'None'
+        $pConfig.Output.Verbosity = 'Detailed'
+        Write-Build DarkBlue "tags given as input: $TestTags"
+        if ($null -ne $TestTags) {
+            $tags = $TestTags -split ' '
+            Write-Build DarkBlue "tags passed to pester : $($tags -join ';')"
+            $pConfig.Filter.Tag = $tags
         }
-        if ($hasSubTasks) {
-            "{0}: {1}" -f $t, $syn
-            $sub
-        }
+        Invoke-Pester -Configuration $pConfig
     }
-}
