@@ -39,7 +39,7 @@ function Get-DendronVault {
                         PSTypeName    = 'Dendron.Vault'
                         Name          = $_.name
                         Content       = Get-Item (Join-Path $root $_.fsPath)
-                        Path          = Get-Item (Join-Path $root $_.fsPath)
+                        Path          = (Join-Path $root $_.fsPath)
                         SelfContained = $_.selfContained
                         Remote        = @{
                             Url  = $_.remote.url
