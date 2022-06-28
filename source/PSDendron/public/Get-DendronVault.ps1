@@ -12,44 +12,65 @@ function Get-DendronVault {
             ValueFromPipeline,
             ValueFromPipelineByPropertyName
         )]
-        [Alias("PSPath")]
+        [Alias('PSPath')]
         [string[]]$Workspace
     )
     begin {
+        Write-Debug "-- Begin $($MyInvocation.MyCommand.Name) --"
     }
     process {
         if (-not($PSBoundParameters['Workspace'])) {
-            $PSItem = (Get-Location).ToString()
-            Write-Debug "No path provided looking in $PSItem"
+            $Workspace = Get-Location
+            Write-Verbose "No workspace specified using $Workspace"
         }
-        Write-Debug "Looking for vaults in $PSItem"
-
-        if (Test-DendronWorkspace $PSItem) {
-            $root = $PSItem
-        } else {
-            $root = $PSItem | Resolve-DendronWorkspace
+        foreach ($p in $Workspace) {
+            Write-Debug "Looking for vaults in $p"
+            try {
+                $item = Get-Item $p -ErrorAction Stop
+                switch (($item.GetType()).Name) {
+                    'FileInfo' {
+                        $root = $item | Resolve-DendronWorkspace
+                        continue
+                    }
+                    'DirectoryInfo' {
+                        if ($item | Test-DendronWorkspace) {
+                            $root = $item
+                        } else {
+                            $root = $item | Resolve-DendronWorkspace
+                        }
+                        continue
+                    }
+                }
+            } catch {
+                Write-Warning "$p is not a valid path`n$_"
+            }
         }
 
         if ($root) {
             try {
                 Write-Debug "Getting dendron config in $root"
                 $config = $root | Get-DendronConfiguration
-                $config.workspace.vaults | % {
+                $root_item = Get-Item $root
+
+                foreach ($v in $config.workspace.vaults) {
+                    $vault_item = Get-Item (Resolve-Path (Join-Path $root_item $v.fsPath))
+
+                    # https://wiki.dendron.so/notes/o4i7a81j778jyh7wql0nacb/
+                    if ($v.selfContained) {
+                        $vault_item = Get-Item (Join-Path -Path $vault_item -ChildPath 'notes')
+                    }
+
                     $vault = [PSCustomObject]@{
                         PSTypeName    = 'Dendron.Vault'
-                        Name          = $_.name
-                        Content       = Get-Item (Join-Path $root $_.fsPath)
-                        Path          = (Join-Path $root $_.fsPath)
-                        SelfContained = $_.selfContained
+                        Name          = $v.name
+                        Sync          = $v.sync
+                        SelfContained = $v.selfContained
+                        Content       = $vault_item
+                        Path          = $vault_item.FullName
                         Remote        = @{
-                            Url  = $_.remote.url
-                            Type = $_.remote.type
+                            Url  = $v.remote.url
+                            Type = $v.remote.type
                         }
-                        Sync          = $_.sync
-                    }
-                    # https://wiki.dendron.so/notes/o4i7a81j778jyh7wql0nacb/
-                    if ($_.selfContained) {
-                        $vault.Content = (Join-Path $vault.Path 'notes')
                     }
                     Write-Output $vault
                 }
@@ -61,5 +82,6 @@ function Get-DendronVault {
         }
     }
     end {
+        Write-Debug "-- End $($MyInvocation.MyCommand.Name) --"
     }
 }
