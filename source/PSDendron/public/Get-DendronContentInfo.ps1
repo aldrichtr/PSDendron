@@ -18,12 +18,13 @@ function Get-DendronContentInfo {
     )
     begin {}
     process {
-        foreach ($p in $Path) {
-            Write-Debug "Parsing $p"
+        foreach ($file in $Path) {
+            Write-Verbose "Parsing $file"
+
             #region File
-            $fileInfo = Get-Item $p
+            $fileInfo = Get-Item $file
             if (-not($fileinfo.Extension -like '.md')) {
-                Write-Verbose "$p is not a content file, skipping"
+                Write-Verbose "$file is not a content file, skipping"
                 continue
             }
             $parts = $hierarchy = [System.Collections.ArrayList]@('root')
@@ -35,9 +36,11 @@ function Get-DendronContentInfo {
             #endregion File
 
             #region Markdown
-            $raw_content = Get-Content $p -Raw
-            $content = $raw_content -replace '(?sm)---.*?---', ''
+
+            $content = Get-Content $file
+            Write-Verbose "Parsing markdown tokens"
             $tokens = $content | ConvertFrom-Markdown | Select-Object -ExpandProperty Tokens
+            Write-Verbose "Extracting Heading information"
             $headings = $tokens | Where-Object {
                     $_.Parser -is [Markdig.Parsers.HeadingBlockParser]
                 } | Foreach-Object {
@@ -50,6 +53,7 @@ function Get-DendronContentInfo {
                     }
                     $heading
                 }
+            Write-Verbose "  Found $($headings.count) headings"
 
             #endregion Markdown
 
@@ -67,9 +71,16 @@ function Get-DendronContentInfo {
             }
 
             #region frontmatter
-            $front = $p | Get-DendronFrontMatter
-            foreach ($p in $front.psobject.properties) {
-                $note | Add-Member -NotePropertyName $p.Name -NotePropertyValue $p.value
+            try {
+                Write-Verbose "Extracting Frontmatter"
+                $front = $file | Get-DendronFrontMatter
+                foreach ($prop in $front.psobject.properties) {
+                    Write-Debug "Adding $($prop.Name) = $($prop.Value) to Note"
+                    $note | Add-Member -NotePropertyName $prop.Name -NotePropertyValue $prop.value
+                }
+            }
+            catch {
+                Write-Error "Error parsing frontmatter in $file`n$_"
             }
             #endregion frontmatter
 
