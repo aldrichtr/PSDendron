@@ -20,7 +20,7 @@ function New-DendronNote {
         [PSTypeName('Dendron.Vault')]$Vault,
 
         # Name of file to create
-        # space (' '), underscore ('_'), and dash ('-') will be
+        # space (' '), underscore ('_') will be
         # converted to dot ('.')
         [Parameter(
             Mandatory,
@@ -37,7 +37,12 @@ function New-DendronNote {
         # Optionally provide tags
         [Parameter(
         )]
-        [string[]]$Tags
+        [string[]]$Tags,
+
+        # Optional hashtable of additional frontmatter
+        [Parameter(
+        )]
+        [hashtable]$FrontMatter
 
     )
     begin {
@@ -62,7 +67,7 @@ function New-DendronNote {
         }
 
         Write-Debug "Converting '$Name' to proper dot hierarchy"
-        $new_name = $Name -replace ' |_|-', '.'
+        $new_name = $Name -replace ' |_', '.'
         Write-Debug "Name: $new_name"
         $title = @($new_name -split '\.')[-1]
         Write-Debug "title set to $title"
@@ -77,6 +82,12 @@ function New-DendronNote {
             updated =  $modified
             created =  $created
         }
+        if ($PSBoundParameters.ContainsKey('FrontMatter')) {
+            foreach ($key in $FrontMatter.Keys) {
+                $front_matter[$key] = $FrontMatter[$key]
+            }
+        }
+
         if ($Tags.Count -gt 0) { $front_matter['tags'] = $Tags }
 
         try {
