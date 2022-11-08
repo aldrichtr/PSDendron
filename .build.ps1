@@ -1,109 +1,98 @@
-param (
-    # BuildRoot is automatically set by Invoke-Build, but it could
-    # be modified here so that hierarchical builds can be done
+param(
     [Parameter()]
-    [string]$BuildRoot = $BuildRoot,
+    [string]$Source = (
+        property Source "$BuildRoot\source"
+    ),
 
     [Parameter()]
-    [string]$BuildTools = "$BuildRoot\build",
-
-    # This is the module name used in many directory, file and script
-    # functions
-    [Parameter()]
-    [string]$ModuleName = '"',
+    [string]$Staging = (
+        property Staging "$BuildRoot\stage"
+    ),
 
     [Parameter()]
-    [string]$TestTag
+    [string]$Tests = (
+        property Tests "$BuildRoot\tests"
+    ),
+
+    [Parameter()]
+    [string]$Artifact = (
+        property Artifact "$BuildRoot\out"
+    ),
+
+    [Parameter()]
+    [string]$Docs = (
+        property Docs "$BuildRoot\docs"
+    ),
+
+    [Parameter()]
+    [switch]$CodeCov = (
+        property CodeCov $false
+    ),
+
+    [Parameter()]
+    [switch]$SkipBuildToolImport = (
+        property SkipBuildToolImport $false
+    ),
+
+    [Parameter()]
+    [switch]$SkipDependencyCheck = (
+        property SkipDependencyCheck $false
+    ),
+
+    [Parameter()]
+    [switch]$CopyEmptySourceDirs = (
+        property CopyEmptySourceDirs $false
+    )
 )
 
+begin {
 
-#region BuildTool Setup
-try {
-    Import-Module "$BuildTools\BuildTool.psd1" -Force -ErrorAction Stop
-} catch {
-    Write-Error "Couldn't load BuildTool from '$BuildTools\BuildTool.psd1'`n$_"
+    if (-not $SkipBuildToolImport) {
+        Import-Module BuildTool
+
+        foreach ($file in Get-Command *.ib.tasks -Module BuildTool) { . $file }
+        <#------------------------------------------------------------------
+         Load any customizations from the .build directory
+        ------------------------------------------------------------------#>
+        # a task file defines a function used to create build task types
+        Get-ChildItem -Path '.build' -Filter '*.task.ps1' | ForEach-Object {
+            . $_.FullName
+        }
+        Get-ChildItem -Path '.build' -Filter '*.build.ps1' | ForEach-Object {
+            . $_.FullName
+        }
+    }
+
+
+    <#------------------------------------------------------------------
+      This alias allows you to call another task from within another task
+      without having to re-invoke invoke-build.  That way all of the state
+      and properties is preserved.
+      Example
+      if ($config.Foo -eq 1) {call update_foo}
+     #! it is definitely messing with the internals a bit which is not
+     #! recommended
+    ------------------------------------------------------------------#>
+    Set-Alias call *Task
+
 }
-
-
-Get-BuildTask -Path "$BuildTools\tasks" -Recurse | ForEach-Object {
-    $fileName = $_.Name
-    try {
-        . $_.FullName
-    } catch {
-        Write-Error "Couldn't load $fileName`n$_"
+process {
+    Enter-Build {
+        $BuildInfo = Get-BuildConfiguration
+    }
+    Set-BuildHeader {
+        param($Path)
+        if ($task.InvocationInfo.ScriptName -like '*workflow.build.ps1') {
+            Write-Build Cyan "$('-' * 80)"
+        }
+        Write-Build Cyan "Begin Task: $($Task.Name.ToUpper() -replace '_', ' ')" (Get-BuildSynopsis $Task)
+    }
+    Set-BuildFooter {
+        param($Path)
+        if ($task.InvocationInfo.ScriptName -like '*workflow.build.ps1') {
+            Write-Build Cyan "$('-' * 80)"
+        }
     }
 }
-
-#endregion
-
-#region InvokeBuild Steps
-Enter-Build {
-    $config = Get-BuildConfiguration
-    Write-Build Gray ('=' * 80)
-    Write-Build Gray "# `u{E7A2} PowerShell BuildTools "
-    Write-Build Gray "# BuildTools project running in '$BuildRoot'"
-    if ($config.Build.Header -notlike 'minimal') {
-        Write-Build Gray 'Project directories:'
-        ('Source', 'Tests', 'Docs', 'Staging', 'Artifact') | ForEach-Object {
-            $projPath = $config.$_.Path
-            if (Test-Path $projPath) {
-                Write-Build Gray (' - {0,-16} {1}' -f $_, ((Get-Item $projPath) |
-                            Resolve-Path -Relative -ErrorAction SilentlyContinue))
-                } else {
-                    Write-Build DarkGray (' - {0,-16} {1}' -f $_, "(missing) $projPath" )
-                }
-            }
-        }
-        Write-Build Gray ('=' * 80)
-    }
-
-    # Exit-Build { Write-Build DarkBlue "Exit-Build after the last task`n$('.' * 78) $Result`n$('.' * 78)" }
-    # Enter-BuildTask { Write-Build DarkBlue "Enter-BuildTask - before each task"}
-    # Exit-BuildTask { Write-Build DarkBlue "Exit-BuildTask - after each task" }
-    # Enter-BuildJob { Write-Build DarkBlue "Enter-BuildJob - before each task action"}
-    # Exit-BuildJob { Write-Build DarkBlue "Exit-BuildJob - after each task action"}
-    # Set-BuildHeader { param($Path) Write-Build DarkBlue "[X] Task $Path --- $(Get-BuildSynopsis $Task)" }
-    # Set-BuildFooter {param($Path)}
-    #endregion
-
-
-    #synopsis: write helpful output
-    task Help {
-        Write-Build Red "The build type: $Type"
-        Write-Build DarkBlue "A total of $(${*}.All.Count) tasks"
-        foreach ( $t in ${*}.All.Keys) {
-            $hasSubTasks = $false
-            $sub = @()
-            $currentTask = ${*}.All[$t]
-            $syn = Get-BuildSynopsis $currentTask
-            foreach ($j in $currentTask.Jobs) {
-                if ($j -is [string] ) {
-                    $hasSubTasks = $true
-                    $sub += ('  {0}: {1}' -f $j, (Get-BuildSynopsis ${*}.All[$j]))
-                }
-            }
-            if ($hasSubTasks) {
-                '{0}: {1}' -f $t, $syn
-                $sub
-            }
-        }
-    }
-
-    task Test {
-        $config = Get-BuildConfiguration
-        $mod = Join-Path -Path $config.Project.Path -ChildPath $config.Project.Modules.Root.Module
-        Import-Module $mod -Force
-
-        $pConfig = New-PesterConfiguration
-        $pConfig.Run.Path = "$BuildRoot\tests"
-        $pConfig.Run.Exit = $true
-        $pConfig.Run.SkipRemainingOnFailure = 'None'
-        $pConfig.Output.Verbosity = 'Detailed'
-        Write-Build DarkBlue "tags given as input: $TestTags"
-        if ($null -ne $TestTags) {
-            $tags = $TestTags -split ' '
-            Write-Build DarkBlue "tags passed to pester : $($tags -join ';')"
-            $pConfig.Filter.Tag = $tags
-        }
-        Invoke-Pester -Configuration $pConfig
-    }
+end {
+}
