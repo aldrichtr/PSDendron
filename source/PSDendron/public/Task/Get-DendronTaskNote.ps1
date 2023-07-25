@@ -33,6 +33,7 @@ function Get-DendronTaskNote {
         try {
             $config = (Get-DendronConfiguration).workspace.task
             $task_domain = $config.name
+            #TODO: This does not allow for filtering tasks by date
             if (-not([system.string]::IsNullOrEmpty($config.dateFormat))) {
                 $date_path = $config.dateFormat -replace 'y+', '*' -replace 'M+' , '*' -replace 'd+', '*'
                 $task_domain += $date_path
