@@ -13,7 +13,7 @@ function Get-DendronVault {
             ValueFromPipelineByPropertyName
         )]
         [Alias('PSPath')]
-        [string[]]$Workspace,
+        [string[]]$Path,
 
         # Include seed vaults in the output
         [Parameter(
@@ -24,30 +24,32 @@ function Get-DendronVault {
         Write-Debug "-- Begin $($MyInvocation.MyCommand.Name) --"
     }
     process {
-        if (-not($PSBoundParameters['Workspace'])) {
-            $Workspace = Get-Location
-            Write-Verbose "No workspace specified using $Workspace"
+        if (-not($PSBoundParameters.ContainsKey('Path'))) {
+            if ([string]::IsNullorEmpty($env:DENDRON_WS)) {
+                Write-Debug 'No Path given and env:DENDRON_WS not set. Using current location'
+                $Path = Get-Location
+            } else {
+                Write-Debug 'No Path given Using env:DENDRON_WS'
+                $Path = ($env:DENDRON_WS -split ';')
+            }
         }
-        foreach ($p in $Workspace) {
+        foreach ($p in $Path) {
             Write-Debug "Looking for vaults in $p"
             try {
                 $item = Get-Item $p -ErrorAction Stop
-                switch (($item.GetType()).Name) {
-                    'FileInfo' {
-                        $root = $item | Resolve-DendronWorkspace
-                        continue
-                    }
-                    'DirectoryInfo' {
-                        if ($item | Test-DendronWorkspace) {
-                            $root = $item
-                        } else {
-                            $root = $item | Resolve-DendronWorkspace
-                        }
-                        continue
-                    }
-                }
             } catch {
                 Write-Warning "$p is not a valid path`n$_"
+            }
+
+            if ($item.PSIsContainer) {
+                if ($item | Test-DendronWorkspace) {
+                    $root = $item
+                } else {
+                    Write-Verbose "Trying to resolve workspace from $($item.FullName)"
+                    $root = $item | Resolve-DendronWorkspace
+                }
+            } else {
+                $root = $item | Resolve-DendronWorkspace
             }
         }
 
@@ -63,7 +65,7 @@ function Get-DendronVault {
                     if ($v.ContainsKey('seed')) {
                         Write-Debug "  $($v.name) is a seed vault"
                         if ($PSBoundParameters.ContainsKey('IncludeSeeds')) {
-                            Write-Debug "   seeds should be included in output"
+                            Write-Debug '   seeds should be included in output'
                             $seed_path = (Join-Path $root_item -ChildPath 'seeds' -AdditionalChildPath $v.seed)
                             $vault_item = Get-Item (Join-Path $seed_path $v.fsPath)
                         }
@@ -89,11 +91,11 @@ function Get-DendronVault {
                     } | Write-Output
                 }
             } catch {
-                #Write-Error "There was an error getting the vaults for workspace $Workspace`n$_"
+                #Write-Error "There was an error getting the vaults for workspace $Path`n$_"
                 $PSCmdlet.ThrowTerminatingError($_)
             }
         } else {
-            Write-Error "$Workspace does not appear to be a dendron workspace"
+            Write-Error "$Path does not appear to be a dendron workspace"
         }
     }
     end {

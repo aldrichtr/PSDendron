@@ -75,30 +75,27 @@ function New-DendronNote {
         $now = Get-Date
         $created = $modified = $now | ConvertTo-DendronTimestamp
         $file_path = Join-Path $Vault.Content -ChildPath "$new_name$note_ext"
-        $front_matter = [ordered]@{
+
+        if ($null -eq $FrontMatter) { $FrontMatter = @{} }
+        $FrontMatter = [ordered]@{
             id      =  $id
             title   =  $title
             desc    =  $Description
             updated =  $modified
             created =  $created
         }
-        if ($PSBoundParameters.ContainsKey('FrontMatter')) {
-            foreach ($key in $FrontMatter.Keys) {
-                $front_matter[$key] = $FrontMatter[$key]
-            }
-        }
 
-        if ($Tags.Count -gt 0) { $front_matter['tags'] = $Tags }
+        if ($Tags.Count -gt 0) { $FrontMatter['tags'] = $Tags }
 
         try {
             $file = New-Item -ItemType File -Path $file_path  -ErrorAction Stop
-            "---", ($front_matter | ConvertTo-Yaml), "---" | Add-Content $file
+            "---", ($FrontMatter | ConvertTo-Yaml), "---" | Add-Content $file
         } catch {
             Write-Error "Could not create $file_path`n$_"
         }
 
 
-        Write-Output "Creating '$file_path' with frontmatter:`n$($front_matter | ConvertTo-Yaml)`n"
+        Write-Output "Creating '$file_path' with frontmatter:`n$($FrontMatter | ConvertTo-Yaml)`n"
     }
     end {
         Write-Debug "-- end $($MyInvocation.MyCommand.Name)"
