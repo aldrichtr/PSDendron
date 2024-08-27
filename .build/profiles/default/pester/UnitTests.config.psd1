@@ -3,9 +3,7 @@
         # Default @('.')
         # Directories to be searched for tests, paths directly to test files, or combination of
         # both.'
-        Path                   = @(
-            './tests/Unit'
-        )
+        Path                   = @('./tests')
 
         # Default @()
         # Directories or files to be excluded from the run.'
@@ -55,7 +53,7 @@
 
         # Default @()
         # Tags of Describe, Context or It to be excluded from the run.
-        ExcludeTag  = @()
+        ExcludeTag  = @('pssa')
 
         # Default @()
         # Filter by file and scriptblock start line, useful to run parsed tests programatically to
@@ -190,7 +188,7 @@
     Output       = @{
         # Default 'Normal'
         # The verbosity of output, options are None, Normal, Detailed and Diagnostic.'
-        Verbosity           = 'Detailed'
+        Verbosity           = 'Normal'
 
         # Default 'Filtered'
         # The verbosity of stacktrace output, options are None, FirstLine, Filtered and Full.'
