@@ -8,60 +8,62 @@ Function Resolve-DendronWorkspace {
     param(
         # Optionally give another directory to start in
         [Parameter(
-            ValueFromPipeline = $true
-        )]
-        [ValidateScript(
-            {
-                if (-Not ($_ | Test-Path)) {
-                    throw "$_ does not exist"
-                }
-                return $true
-            }
+            Position = 1,
+            ValueFromPipeline,
+            ValueFromPipelineByPropertyName
         )]
         [Alias('PSPath')]
-        [string]$Path = (Get-Location).ToString(),
+        [string]$Path,
 
         # Optionally limit how many levels to check
         [Parameter(
+            Position = 0
         )]
-        [int]$Depth = 4
+        [int]$Depth
     )
     begin {
         Write-Debug "Begin $($MyInvocation.MyCommand.Name)"
-        $ws_found = $false
+        $wsFound = $false
+        $defaultDepth = 4
     }
     process {
-        if ($Path -is [string]) {
-            $location = Get-Item $Path
-            if ($location -is [System.IO.FileInfo]) {
-                $location = $location.Directory
-            }
-
-        } elseif ($Path -is [System.IO.DirectoryInfo]) {
-            $location = $Path
-        } elseif ($Path -is [System.IO.FileInfo]) {
-            $location = $Path.Directory
-        } else {
-            Write-Error "$Path is not a valid location"
+        if (-not ($PSBoundParameters.ContainsKey('Depth'))) {
+            $Depth = $defaultDepth
         }
-        Write-Debug "Starting in $($location.GetType()) $location"
+
+        if (-not ($PSBoundParameters.ContainsKey('Path'))) {
+            $Path = Get-Location
+            | Select-Object Path
+        }
+
+        if ($Path -is [string]) {
+            $Path = Get-Item $Path
+        }
+
+        if ($Path.PSIsContainer) {
+            $Path = $Path
+        } else {
+            $Path = $Path.Directory
+        }
+
+        Write-Debug "Starting in $Path"
         Write-Verbose "Looking for workspace root with a maximum depth of $Depth"
 
         for ($i = 0; $i -lt $Depth; $i++) {
-            if (Test-Dendronworkspace $location) {
-                Write-Verbose "Dendron workspace found at level $i '$($location.Name)'"
-                $ws_found = $true
+            if (Test-Dendronworkspace $Path) {
+                Write-Verbose "Dendron workspace found at level $i '$($Path.Name)'"
+                $wsFound = $true
                 break
             } else {
-                $location = $location.Parent
-                Write-Debug "Not found at depth $Depth, looking in $($location.Name)"
+                $Path = $Path.Parent
+                Write-Debug "Not found at depth $Depth, looking in $($Path.Name)"
             }
         }
-        if ( -Not $ws_found) {
+        if ( -not $wsFound) {
             throw "workspace root not found in $Depth levels"
         }
+        $Path
     }
     end {
-        $location
     }
 }
