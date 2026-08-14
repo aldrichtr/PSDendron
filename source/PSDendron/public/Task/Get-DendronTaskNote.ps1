@@ -13,6 +13,7 @@ function Get-DendronTaskNote {
 
         # Filter to apply to filenames
         [Parameter(
+            Position = 0
         )]
         [string]$Filter,
 
@@ -31,21 +32,18 @@ function Get-DendronTaskNote {
     }
     process {
         try {
-            $config = (Get-DendronConfiguration).workspace.task
-            $task_domain = $config.name
-            #TODO: This does not allow for filtering tasks by date
-            if (-not([system.string]::IsNullOrEmpty($config.dateFormat))) {
-                $date_path = $config.dateFormat -replace 'y+', '*' -replace 'M+' , '*' -replace 'd+', '*'
-                $task_domain += $date_path
-                $task_domain += '.'
-                Write-Debug "  Adding date to the filter: $task_domain"
+            if (-not ($PSBoundParameters.ContainsKey('Path'))) {
+                $ws = Get-DendronWorkspace -Default
+                if ($null -ne $ws) {
+                    $vaults = $ws | Get-DendronVault
+                    foreach ($vault in $vaults) {
+                        $Path = $PSBoundParameters['Path'] = $vault.Path
+                        Write-Debug "Getting tasks at path $($PSBoundParameters.Path)"
+                        Get-DendronContent @PSBoundParameters -Type Task
+                    }
+                }
             }
 
-            if (-not($PSBoundParameters.ContainsKey('Filter'))) {
-                $PSBoundParameters['Filter'] = "$($task_domain)*.md"
-            }
-
-            Get-DendronContent @PSBoundParameters | Write-Output
 
         } catch {
             $PSCmdlet.ThrowTerminatingError($_)

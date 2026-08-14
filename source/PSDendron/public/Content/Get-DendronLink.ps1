@@ -140,7 +140,7 @@ function Get-DendronLink {
                         Range       = $end
                     }
 
-                    $wiki_link | Write-Output
+                    $wiki_link
                 }
                 $line_num++
             }

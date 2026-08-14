@@ -1,5 +1,19 @@
 
 function Add-DendronFrontMatter {
+    <#
+    .SYNOPSIS
+        Adds the default keys to the frontmatter of the given file
+    .DESCRIPTION
+        In dendron, a note has four fields that are added to all files when they are created:
+        - id (a nanoid id)
+        - title
+        - desc
+        - updated
+        - created
+    .LINK
+        Set-DendronFrontMatter
+        Remove-DendronFrontMatter
+    #>
     [CmdletBinding(
         SupportsShouldProcess
     )]
@@ -28,12 +42,12 @@ function Add-DendronFrontMatter {
                 Write-Error "$file already has frontmatter"
             } else {
                 $item = Get-Item $file
-                $now = Get-Date | ConvertTo-DendronTimestamp
+
                 $front_matter = [ordered]@{
                     id       = New-DendronContentId
                     title    = ($item.BaseName -split '\.')[-1]
-                    created  = $now
-                    modified = $now
+                    created  = ($item.CreationTime | ConvertTo-DendronTimestamp)
+                    modified = (Get-Date | ConvertTo-DendronTimestamp)
                 }
                 Write-Verbose "Adding frontmatter id: $($front_matter.id) title $($front_matter.title) to $($item.basename) "
                 $content = $item | Get-Content

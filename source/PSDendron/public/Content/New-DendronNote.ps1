@@ -32,7 +32,7 @@ function New-DendronNote {
         # Optionally provide a description
         [Parameter(
         )]
-        [Type]$Description,
+        [string]$Description,
 
         # Optionally provide tags
         [Parameter(
@@ -42,7 +42,12 @@ function New-DendronNote {
         # Optional hashtable of additional frontmatter
         [Parameter(
         )]
-        [hashtable]$FrontMatter
+        [hashtable]$FrontMatter,
+
+        # Optionally return the file object
+        [Parameter(
+        )]
+        [switch]$PassThru
 
     )
     begin {
@@ -94,8 +99,11 @@ function New-DendronNote {
             Write-Error "Could not create $file_path`n$_"
         }
 
+        if ($PassThru) {
+            $file
+        }
 
-        Write-Output "Creating '$file_path' with frontmatter:`n$($FrontMatter | ConvertTo-Yaml)`n"
+        Write-Verbose "Creating '$file_path' with frontmatter:`n$($FrontMatter | ConvertTo-Yaml)`n"
     }
     end {
         Write-Debug "-- end $($MyInvocation.MyCommand.Name)"

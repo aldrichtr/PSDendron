@@ -25,12 +25,15 @@ function Get-DendronVault {
     }
     process {
         if (-not($PSBoundParameters.ContainsKey('Path'))) {
-            if ([string]::IsNullorEmpty($env:DENDRON_WS)) {
+            $defaultWorkspace = Get-DendronWorkspace -Default
+            if ($null -ne $defaultWorkspace) {
+                $Path = $defaultWorkspace.Path
+            } elseif (-not ([string]::IsNullorEmpty($env:DENDRON_WS))) {
+                Write-Debug 'No Path given Using env:DENDRON_WS'
+                $Path = ($env:DENDRON_WS -split ';' | Select-Object -First 1)
+            } else {
                 Write-Debug 'No Path given and env:DENDRON_WS not set. Using current location'
                 $Path = Get-Location
-            } else {
-                Write-Debug 'No Path given Using env:DENDRON_WS'
-                $Path = ($env:DENDRON_WS -split ';')
             }
         }
         foreach ($p in $Path) {
@@ -56,8 +59,8 @@ function Get-DendronVault {
         if ($root) {
             try {
                 Write-Debug "Getting dendron config in $root"
-                $root_item = Get-Item $root
-                $config = $root_item | Get-DendronConfiguration
+                $rootItem = Get-Item $root
+                $config = $rootItem | Get-DendronWorkspaceConfiguration
 
                 Write-Debug '  Loaded configuration.  Reading vaults:'
 
@@ -66,15 +69,15 @@ function Get-DendronVault {
                         Write-Debug "  $($v.name) is a seed vault"
                         if ($PSBoundParameters.ContainsKey('IncludeSeeds')) {
                             Write-Debug '   seeds should be included in output'
-                            $seed_path = (Join-Path $root_item -ChildPath 'seeds' -AdditionalChildPath $v.seed)
-                            $vault_item = Get-Item (Join-Path $seed_path $v.fsPath)
+                            $seedPath = (Join-Path $rootItem -ChildPath 'seeds' -AdditionalChildPath $v.seed)
+                            $vaultItem = Get-Item (Join-Path $seedPath $v.fsPath)
                         }
                     } elseif ($v.selfContained) {
                         Write-Debug "  $($v.name) is a self-contained vault, using default 'notes' folder"
                         # https://wiki.dendron.so/notes/o4i7a81j778jyh7wql0nacb/
-                        $vault_item = Get-Item (Join-Path -Path $root_item -ChildPath 'notes')
+                        $vaultItem = Get-Item (Join-Path -Path $rootItem -ChildPath 'notes')
                     } else {
-                        $vault_item = Get-Item (Resolve-Path (Join-Path $root_item $v.fsPath))
+                        $vaultItem = Get-Item (Resolve-Path (Join-Path $rootItem $v.fsPath))
                     }
 
                     [PSCustomObject]@{
@@ -82,8 +85,8 @@ function Get-DendronVault {
                         Name          = $v.name
                         Sync          = $v.sync
                         SelfContained = $v.selfContained
-                        Content       = $vault_item
-                        Path          = $vault_item.FullName
+                        Content       = $vaultItem
+                        Path          = $vaultItem.FullName
                         Remote        = @{
                             Url  = $v.remote.url
                             Type = $v.remote.type

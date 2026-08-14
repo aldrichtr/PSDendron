@@ -26,21 +26,21 @@ Function Get-DendronFrontMatter {
 
     begin {
         Write-Debug "Begin $($MyInvocation.MyCommand.Name)"
-        $yaml_pattern = '(?sm)---(.*?)---'
+        $yamlPattern = '(?sm)---(.*?)---'
     }
     process {
-        $file_contents = Get-Content $Path -Raw
-        $null = $file_contents -match $yaml_pattern
+        $fileContents = Get-Content $Path -Raw
+        $null = $fileContents -match $yamlPattern
         if ($Matches.Count -gt 0) {
-            $yaml_content = $Matches.1
-            Write-Verbose "yaml front matter $yaml_content"
+            $yamlContent = $Matches.1
+            Write-Verbose "yaml front matter $yamlContent"
             try {
-                $front_matter = $yaml_content | ConvertFrom-Yaml
-                $front_matter['PSTypeName'] = 'Dendron.Note.FrontMatter'
-                $front_matter.created = $front_matter.created | ConvertFrom-DendronTimestamp
-                $front_matter.updated = $front_matter.updated | ConvertFrom-DendronTimestamp
+                $frontMatter = $yamlContent | ConvertFrom-Yaml
+                $frontMatter['PSTypeName'] = 'Dendron.Note.FrontMatter'
+                $frontMatter.created = $frontMatter.created | ConvertFrom-DendronTimestamp
+                $frontMatter.updated = $frontMatter.updated | ConvertFrom-DendronTimestamp
             } catch {
-                Write-Error "Error parsing frontmatter:`n$yaml_content`n$_"
+                Write-Error "Error parsing frontmatter:`n$yamlContent`n$_"
             }
         } else {
             Write-Error "$Path does not contain frontmatter"
@@ -48,6 +48,6 @@ Function Get-DendronFrontMatter {
     }
 
     end {
-        ([PSCustomObject]$front_matter)
+        ([PSCustomObject]$frontMatter)
     }
 }
